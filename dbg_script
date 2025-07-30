@@ -1,0 +1,114 @@
+// =====================
+// ⚡️ USER-MODE MALWARE TRIAGE SCRIPT (FAST + STABLE)
+// For: x64dbg & x32dbg
+// Version: 2025.07
+// =====================
+// === [1] MEMORY INJECTION / RWX ALLOCATIONS ===
+bp VirtualAlloc
+bp VirtualAllocEx
+bp VirtualProtect
+bp VirtualProtectEx
+bp NtAllocateVirtualMemory
+bp NtProtectVirtualMemory
+bp WriteProcessMemory
+bp NtWriteVirtualMemory
+
+// === [2] PROCESS & THREAD CREATION ===
+bp CreateProcessA
+bp CreateProcessW
+bp CreateRemoteThread
+bp CreateRemoteThreadEx
+bp NtCreateProcess
+bp NtCreateProcessEx
+bp NtCreateThreadEx
+bp RtlCreateUserThread
+
+// === [3] DLL LOADING & REFLECTION ===
+bp LoadLibraryA
+bp LoadLibraryW
+bp LoadLibraryExA
+bp LoadLibraryExW
+bp LdrLoadDll
+bp GetProcAddress
+bp LdrGetProcedureAddress
+bp LdrGetProcedureAddressForCaller
+
+// === [4] ANTIDEBUGGING & ENV DETECTION ===
+bp IsDebuggerPresent
+bp CheckRemoteDebuggerPresent
+bp NtQueryInformationProcess
+bp NtSetInformationThread
+bp OutputDebugStringA
+bp OutputDebugStringW
+bp GetTickCount
+bp QueryPerformanceCounter
+bp GetSystemTimeAsFileTime
+bp NtClose
+
+// === [5] NETWORK OPERATIONS (SAFE WITH modbp) ===
+modbp wininet.dll InternetOpenA
+modbp wininet.dll InternetOpenW
+modbp wininet.dll InternetConnectA
+modbp wininet.dll InternetConnectW
+modbp wininet.dll HttpOpenRequestA
+modbp wininet.dll HttpOpenRequestW
+modbp winhttp.dll WinHttpOpen
+modbp winhttp.dll WinHttpConnect
+bp connect
+bp send
+bp recv
+bp WSASend
+bp WSARecv
+bp WSAStartup
+
+// === [6] REGISTRY TAMPERING ===
+bp RegOpenKeyExA
+bp RegOpenKeyExW
+bp RegCreateKeyExA
+bp RegCreateKeyExW
+bp RegSetValueExA
+bp RegSetValueExW
+bp RegDeleteKeyA
+bp RegDeleteKeyW
+
+// === [7] FILE DROPPING / FILE SYSTEM ===
+bp CreateFileA
+bp CreateFileW
+bp WriteFile
+bp ReadFile
+bp CopyFileA
+bp CopyFileW
+bp DeleteFileA
+bp DeleteFileW
+bp MoveFileA
+bp MoveFileW
+bp SetFileAttributesA
+bp SetFileAttributesW
+
+// === [8] SERVICE & SCHEDULED TASKS ===
+bp OpenSCManagerA
+bp OpenSCManagerW
+bp CreateServiceA
+bp CreateServiceW
+bp StartServiceA
+bp StartServiceW
+bp ControlService
+bp DeleteService
+bp OpenServiceA
+bp OpenServiceW
+
+// === [9] COM / WMI ABUSE (SAFE WITH modbp) ===
+modbp ole32.dll CoCreateInstance
+modbp ole32.dll CoGetClassObject
+modbp ole32.dll CoInitialize
+modbp ole32.dll CoInitializeEx
+modbp wbemprox.dll IWbemServices::ExecQuery
+modbp wbemprox.dll IWbemServices::ExecMethod
+
+// === [10] THREAD CONTEXT / INJECTION LOGIC ===
+bp SetThreadContext
+bp GetThreadContext
+bp NtMapViewOfSection
+
+// === [11] FINAL LOG ===
+log "✅ User-mode breakpoint script loaded successfully. Ready for behavioral tracing."
