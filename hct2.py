@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-🔐 Advanced Hash Calculator CLI Tool (Super Edition v5 🚀)
-   - FIXED: Solved TLSH Windows build error using pre-compiled 'tlsh-python'
-   - FIXED: Replaced 'ssdeep' with 'ppdeep' for easy Windows install
+🔐 Advanced Hash Calculator CLI Tool (Super Edition v6 🚀)
+   - FIXED: Universal TLSH wrapper that supports BOTH 'tlsh' and 'tlsh-python' libs
+   - FIXED: 'Module has no attribute hash' error completely resolved
    - Single-pass streaming for ALL algorithms
-   - Multi-threaded recursive scanning
 """
 
 import argparse
@@ -31,41 +30,32 @@ SUPPORTED_HASHES = [
 
 # --- Smart Dependency Installer ---
 def install_dependencies():
-    """
-    Smartly installs binaries based on OS to avoid C++ build errors.
-    """
     print(f"📦 Starting Smart Dependency Installer...")
     system = platform.system()
-    print(f"   Detected OS: {system}")
-
+    
     # 1. Standard Packages
     pkgs = ["colorama", "tqdm", "pefile", "pyperclip", "ppdeep"]
     
     # 2. OS-Specific Magic & TLSH
     if system == "Windows":
-        # Windows needs binary wheels to avoid C++ compilation errors
         pkgs.append("python-magic-bin") 
-        pkgs.append("tlsh-python") # <--- The critical fix for Windows
+        pkgs.append("tlsh-python") # Windows Binary
     else:
-        # Linux/Mac usually handles source builds better or has different names
         pkgs.append("python-magic")
         pkgs.append("python-tlsh")
 
     print(f"   Target Packages: {', '.join(pkgs)}\n")
     
-    # 3. Installation Loop
     for package in pkgs:
         print(f"[+] Installing {package}...")
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", package])
         except subprocess.CalledProcessError:
             print(f"   [!] Failed to install {package}.")
-            if "tlsh" in package:
-                print(f"       ⚠️  Warning: TLSH hashing will be skipped if this install failed.")
     
     print(f"\n✅ Installation finished. Please restart the script.")
 
-# --- Imports (Safe Mode) ---
+# --- Imports ---
 try:
     from colorama import Fore, Style, init as colorama_init
     colorama_init()
@@ -102,13 +92,41 @@ try:
 except ImportError:
     pass
 
-# 2. TLSH
+# 2. TLSH (Universal Wrapper)
 HAS_TLSH = False
 try:
     import tlsh
     HAS_TLSH = True
 except ImportError:
     pass
+
+def compute_tlsh(data_bytes):
+    """
+    Universal wrapper to handle the different TLSH library versions.
+    """
+    if not HAS_TLSH: return "N/A (Module Missing)"
+    
+    try:
+        # METHOD 1: Standard 'tlsh' lib (Linux/Source build)
+        if hasattr(tlsh, 'hash'):
+            return tlsh.hash(data_bytes)
+        
+        # METHOD 2: 'tlsh-python' lib (Windows Binary)
+        # It uses an object-oriented approach or 'forcehash'
+        elif hasattr(tlsh, 'Tlsh'):
+            t = tlsh.Tlsh()
+            t.update(data_bytes)
+            t.final()
+            return t.hexdigest()
+            
+        # METHOD 3: Fallback for older 'tlsh-python'
+        elif hasattr(tlsh, 'forcehash'):
+            return tlsh.forcehash(data_bytes)
+            
+    except Exception as e:
+        return f"Error: {str(e)}"
+    
+    return "Error: Unknown TLSH library version"
 
 # Thread-safe print lock
 print_lock = threading.Lock()
@@ -161,7 +179,7 @@ class SuperHasher:
             elif algo == 'crc32':
                 self.hash_objs['crc32'] = 0
 
-        # Buffers for fuzzy hashes (cannot stream easily)
+        # Buffers for fuzzy hashes
         self.full_buffer = None
         if ('ssdeep' in self.algos and HAS_SSDEEP) or ('tlsh' in self.algos and HAS_TLSH):
             self.full_buffer = bytearray()
@@ -186,7 +204,7 @@ class SuperHasher:
                         else:
                             obj.update(chunk)
                     
-                    # Buffer for Fuzzy Hashes (Limit 200MB to prevent RAM crash)
+                    # Buffer for Fuzzy Hashes
                     if self.full_buffer is not None:
                         if len(self.full_buffer) < 200 * 1024 * 1024:
                             self.full_buffer.extend(chunk)
@@ -210,11 +228,11 @@ class SuperHasher:
                 elif not HAS_SSDEEP: self.results['SSDEEP'] = "N/A (Module Missing)"
                 else: self.results['SSDEEP'] = "Skipped (>200MB)"
 
-            # TLSH
+            # TLSH (Using Wrapper)
             if 'tlsh' in self.algos:
                 if HAS_TLSH and self.full_buffer:
                     if len(self.full_buffer) < 50: self.results['TLSH'] = "Error: Data too short"
-                    else: self.results['TLSH'] = tlsh.hash(bytes(self.full_buffer))
+                    else: self.results['TLSH'] = compute_tlsh(bytes(self.full_buffer))
                 elif not HAS_TLSH: self.results['TLSH'] = "N/A (Module Missing)"
                 else: self.results['TLSH'] = "Skipped (>200MB)"
 
@@ -296,11 +314,10 @@ def process_file_job(file_path, args, is_recursive=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description=f"{Fore.CYAN}🔐 Advanced Hash Calculator - SUPER EDITION v5{Style.RESET_ALL}",
+        description=f"{Fore.CYAN}🔐 Advanced Hash Calculator - SUPER EDITION v6{Style.RESET_ALL}",
         epilog="""
 Setup:
   Run 'python hash_super.py --install-deps' to fix missing modules.
-  (This version uses 'tlsh-python' to fix Windows build errors).
         """
     )
     parser.add_argument("filepath", nargs="?", help="Path to file or folder")
@@ -345,8 +362,27 @@ Setup:
                 if res: all_results.append(res)
 
     if args.output in ["json", "csv"] and all_results:
-        # Export logic similar to before (omitted for brevity, text output works)
-        pass
+        out_path = path if path.is_file() else path / "scan_results"
+        if args.output == "json":
+            out_file = str(out_path) + ".json"
+            if path.is_dir(): out_file = path / "batch_scan.json"
+            with open(out_file, 'w') as f: json.dump(all_results, f, indent=4)
+            print(f"{Fore.GREEN}[✓] Saved JSON to {out_file}{Style.RESET_ALL}")
+        elif args.output == "csv":
+            out_file = str(out_path) + ".csv"
+            if path.is_dir(): out_file = path / "batch_scan.csv"
+            with open(out_file, 'w', newline='') as f:
+                sample = all_results[0]
+                headers = ["Path", "Size"] + list(sample['hashes'].keys())
+                if args.entropy: headers.append("Entropy")
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                for res in all_results:
+                    row = [res['path'], res['info'].get('Size')]
+                    for h_key in sample['hashes'].keys(): row.append(res['hashes'].get(h_key, ""))
+                    if args.entropy: row.append(res.get('entropy', ""))
+                    writer.writerow(row)
+            print(f"{Fore.GREEN}[✓] Saved CSV to {out_file}{Style.RESET_ALL}")
 
 if __name__ == "__main__":
     main()
